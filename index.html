@@ -1,0 +1,472 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>J.A.R.V.I.S. - Asistente IA</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+body {
+  background: #000a12;
+  color: #00ff88;
+  font-family: 'Courier New', monospace;
+  overflow: hidden;
+  height: 100vh;
+  width: 100vw;
+  user-select: none;
+}
+#bg-canvas {
+  position: fixed; top: 0; left: 0; width: 100%; height: 100%; z-index: 0;
+}
+#ui {
+  position: relative; z-index: 1; width: 100%; height: 100vh;
+  display: flex; flex-direction: column; align-items: center;
+}
+#top-bar {
+  width: 100%; padding: 20px 40px; display: flex;
+  justify-content: space-between; align-items: flex-start;
+}
+#status { font-size: 14px; font-weight: bold; letter-spacing: 2px; }
+#clock-box { text-align: right; }
+#time { font-size: 28px; color: #00ffcc; font-weight: bold; }
+#date { font-size: 12px; color: #008866; margin-top: 4px; }
+#reactor-area {
+  flex: 1; display: flex; flex-direction: column;
+  align-items: center; justify-content: center; width: 100%;
+}
+#title { font-size: 36px; color: #00ccff; font-weight: bold; letter-spacing: 4px; }
+#subtitle { font-size: 12px; color: #006688; margin-top: 8px; }
+#reactor {
+  position: relative; width: 220px; height: 220px; margin: 20px 0;
+}
+#reactor canvas { width: 100%; height: 100%; }
+#bubble {
+  font-size: 15px; color: #00ffcc; background: #001122;
+  padding: 14px 24px; border-radius: 8px; max-width: 500px;
+  text-align: center; min-height: 48px; display: flex;
+  align-items: center; justify-content: center;
+  border: 1px solid #003355; margin: 10px 0;
+}
+#wave-canvas { width: 80%; height: 80px; margin: 10px 0; }
+#log-box {
+  width: 80%; max-height: 150px; background: #000a14;
+  border: 1px solid #001a2e; border-radius: 4px;
+  padding: 10px; overflow-y: auto; margin: 10px 0 20px;
+  font-size: 11px; color: #00ff88; line-height: 1.6;
+}
+#log-box::-webkit-scrollbar { width: 4px; }
+#log-box::-webkit-scrollbar-track { background: #000a12; }
+#log-box::-webkit-scrollbar-thumb { background: #003366; border-radius: 2px; }
+#api-config {
+  position: fixed; bottom: 60px; right: 20px; z-index: 10;
+  display: flex; align-items: center; gap: 8px;
+}
+#api-input {
+  background: #001a2e; border: 1px solid #003355; color: #00ff88;
+  padding: 6px 10px; border-radius: 4px; font-family: monospace; font-size: 11px; width: 300px;
+}
+#api-input::placeholder { color: #004466; }
+#api-btn {
+  background: #003366; color: #00ccff; border: none; padding: 6px 12px;
+  border-radius: 4px; cursor: pointer; font-family: monospace; font-size: 11px;
+}
+#api-btn:hover { background: #005599; }
+#api-status { font-size: 10px; color: #008866; }
+#mic-btn {
+  position: fixed; bottom: 20px; left: 50%; transform: translateX(-50%);
+  background: #003366; color: #00ccff; border: 2px solid #005599;
+  padding: 14px 40px; border-radius: 30px; cursor: pointer;
+  font-family: 'Courier New', monospace; font-size: 14px; font-weight: bold;
+  letter-spacing: 2px; z-index: 10; transition: all 0.3s;
+}
+#mic-btn:hover { background: #005599; border-color: #00ccff; }
+#mic-btn.listening { background: #003322; border-color: #00ff44; color: #00ff44; }
+#mic-btn.thinking { background: #332200; border-color: #ffaa00; color: #ffaa00; }
+#mic-btn.speaking { background: #002233; border-color: #00ccff; color: #00ccff; }
+.github-link {
+  position: fixed; top: 20px; left: 50%; transform: translateX(-50%);
+  z-index: 10; font-size: 11px;
+}
+.github-link a { color: #004466; text-decoration: none; }
+.github-link a:hover { color: #0088aa; }
+</style>
+</head>
+<body>
+<canvas id="bg-canvas"></canvas>
+<button id="mic-btn">INICIAR</button>
+<div id="api-config">
+  <input id="api-input" type="text" placeholder="API Key de Groq (opcional - usa la predeterminada)">
+  <button id="api-btn">APLICAR</button>
+  <span id="api-status"></span>
+</div>
+<div id="ui">
+  <div id="top-bar">
+    <div id="status">INICIANDO...</div>
+    <div id="clock-box">
+      <div id="time">00:00:00</div>
+      <div id="date">--/--/----</div>
+    </div>
+  </div>
+  <div id="reactor-area">
+    <div id="title">J.A.R.V.I.S.</div>
+    <div id="subtitle">GROQ AI ASSISTANT</div>
+    <div id="reactor"><canvas id="reactor-canvas" width="220" height="220"></canvas></div>
+    <div id="bubble">Presiona INICIAR y habla</div>
+    <canvas id="wave-canvas"></canvas>
+    <div id="log-box"></div>
+  </div>
+</div>
+<script>
+// ===== CONFIG =====
+const GROQ_KEY = ["gsk_", "rAi2qAusIq4Xe3sBjU26WGdyb3FYApr8z3SpbG3OsdJmwvvn9yKy"].join("");
+const GROQ_MODEL = "llama-3.3-70b-versatile";
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
+
+// ===== STATE =====
+let listening = false;
+let speaking = false;
+let thinking = false;
+let waveAmp = 0;
+let recognition = null;
+let synth = window.speechSynthesis;
+let voice = null;
+let apiKey = GROQ_KEY;
+
+// ===== DOM REFS =====
+const statusEl = document.getElementById("status");
+const timeEl = document.getElementById("time");
+const dateEl = document.getElementById("date");
+const bubbleEl = document.getElementById("bubble");
+const logEl = document.getElementById("log-box");
+const waveCanvas = document.getElementById("wave-canvas");
+const reactorCanvas = document.getElementById("reactor-canvas");
+const bgCanvas = document.getElementById("bg-canvas");
+const micBtn = document.getElementById("mic-btn");
+const apiInput = document.getElementById("api-input");
+const apiBtn = document.getElementById("api-btn");
+const apiStatus = document.getElementById("api-status");
+
+// ===== CLOCK =====
+function tickClock() {
+  const now = new Date();
+  timeEl.textContent = now.toLocaleTimeString("es-ES", { hour12: false });
+  dateEl.textContent = now.toLocaleDateString("es-ES");
+}
+setInterval(tickClock, 1000);
+tickClock();
+
+// ===== BACKGROUND GRID + REACTOR =====
+function drawBg() {
+  const c = bgCanvas, ctx = c.getContext("2d");
+  c.width = window.innerWidth; c.height = window.innerHeight;
+  ctx.strokeStyle = "#000e18"; ctx.lineWidth = 1;
+  for (let x = 0; x < c.width; x += 80) {
+    ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, c.height); ctx.stroke();
+  }
+  for (let y = 0; y < c.height; y += 80) {
+    ctx.beginPath(); ctx.moveTo(0, y); ctx.lineTo(c.width, y); ctx.stroke();
+  }
+}
+window.addEventListener("resize", drawBg);
+drawBg();
+
+function drawReactor() {
+  const c = reactorCanvas, ctx = c.getContext("2d");
+  const cx = 110, cy = 110;
+  ctx.clearRect(0, 0, 220, 220);
+  for (let i = 0; i < 5; i++) {
+    const r = 60 + i * 15;
+    ctx.beginPath(); ctx.arc(cx, cy, r, 0, Math.PI * 2);
+    ctx.strokeStyle = "#003366"; ctx.lineWidth = 1; ctx.stroke();
+  }
+  ctx.beginPath(); ctx.arc(cx, cy, 50, 0, Math.PI * 2);
+  ctx.strokeStyle = "#00aaff"; ctx.lineWidth = 2; ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 20, 0, Math.PI * 2);
+  ctx.fillStyle = "#002244"; ctx.strokeStyle = "#00aaff"; ctx.lineWidth = 2;
+  ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(cx, cy, 10, 0, Math.PI * 2);
+  ctx.fillStyle = "#0099cc"; ctx.strokeStyle = "#00ddff"; ctx.lineWidth = 1;
+  ctx.fill(); ctx.stroke();
+}
+drawReactor();
+
+// ===== WAVE ANIMATION =====
+function drawWave() {
+  const c = waveCanvas, ctx = c.getContext("2d");
+  c.width = c.clientWidth || waveCanvas.parentElement.clientWidth * 0.8 || 600;
+  c.height = c.clientHeight || 80;
+  const w = c.width, h = c.height, cy = h / 2, n = 80;
+  const ts = Date.now() / 1000;
+  ctx.clearRect(0, 0, w, h);
+  for (let layer = 0; layer < 4; layer++) {
+    ctx.beginPath();
+    const amp = waveAmp * (1 - layer * 0.25);
+    for (let i = 0; i <= n; i++) {
+      const x = (i / n) * w;
+      const y = cy + amp * Math.sin(i * 0.2 + ts * 5 + layer * 0.7);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    }
+    const intensity = Math.min(waveAmp / 60, 1);
+    const g = Math.round(180 * intensity);
+    const b = Math.round(255 * intensity);
+    ctx.strokeStyle = speaking ? `rgb(0,${g},${b})` : "#003344";
+    ctx.lineWidth = 2 - layer / 2;
+    ctx.stroke();
+  }
+  requestAnimationFrame(drawWave);
+}
+drawWave();
+
+// ===== LOAD VOICE =====
+function loadSpanishVoice() {
+  const voices = synth.getVoices();
+  voice = voices.find(v => v.lang.startsWith("es") && v.name.includes("Male"))
+       || voices.find(v => v.lang.startsWith("es"))
+       || voices.find(v => v.lang.startsWith("en") && v.name.includes("Google"))
+       || voices[0];
+}
+synth.onvoiceschanged = loadSpanishVoice;
+loadSpanishVoice();
+
+// ===== SPEECH =====
+function speak(text) {
+  speaking = true;
+  bubbleEl.textContent = text;
+  log("JARVIS: " + text);
+  setStatus("HABLANDO", "#00ccff");
+  micBtn.textContent = "HABLANDO";
+  micBtn.className = "speaking";
+
+  synth.cancel();
+  const utter = new SpeechSynthesisUtterance(text);
+  utter.lang = "es-ES";
+  utter.rate = 1.0;
+  utter.pitch = 0.9;
+  if (voice) utter.voice = voice;
+  utter.onend = () => {
+    speaking = false;
+    bubbleEl.textContent = "";
+    if (listening) {
+      setStatus("ESCUCHANDO", "#00ff44");
+      micBtn.textContent = "ESCUCHANDO";
+      micBtn.className = "listening";
+    } else {
+      setStatus("DETENIDO", "#ffaa00");
+      micBtn.textContent = "INICIAR";
+      micBtn.className = "";
+    }
+  };
+  utter.onerror = () => { speaking = false; };
+  synth.speak(utter);
+}
+
+// ===== SET STATUS =====
+function setStatus(text, color) {
+  statusEl.textContent = text;
+  statusEl.style.color = color;
+}
+
+// ===== LOG =====
+function log(msg) {
+  const div = document.createElement("div");
+  div.textContent = msg;
+  logEl.appendChild(div);
+  logEl.scrollTop = logEl.scrollHeight;
+}
+
+// ===== GROQ AI =====
+async function askGroq(text) {
+  thinking = true;
+  micBtn.textContent = "PENSANDO...";
+  micBtn.className = "thinking";
+  setStatus("PENSANDO...", "#ffaa00");
+
+  try {
+    const res = await fetch(GROQ_URL, {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer " + apiKey,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        model: GROQ_MODEL,
+        messages: [
+          { role: "system", content: "Eres J.A.R.V.I.S., el asistente de IA de Tony Stark. Responde de forma breve, clara y util en espanol. Maximo 3 oraciones." },
+          { role: "user", content: text }
+        ],
+        max_tokens: 150
+      })
+    });
+    if (!res.ok) {
+      const err = await res.text();
+      throw new Error(err);
+    }
+    const data = await res.json();
+    const reply = data.choices[0].message.content.trim();
+    thinking = false;
+    speak(reply);
+  } catch (e) {
+    thinking = false;
+    const errMsg = "Error de conexion con la IA. Verifica tu API key.";
+    log("ERROR: " + e.message);
+    speak(errMsg);
+  }
+}
+
+// ===== COMMANDS =====
+function handleCommand(text) {
+  const t = text.toLowerCase();
+  const now = new Date();
+
+  if (["adios", "chao", "me voy", "hasta luego", "salir", "apaga", "termina", "cerrar"].some(p => t.includes(p))) {
+    speak("Hasta pronto.");
+    listening = false;
+    micBtn.textContent = "INICIAR";
+    micBtn.className = "";
+    setStatus("DETENIDO", "#ffaa00");
+    if (recognition) try { recognition.stop(); } catch(e) {}
+    return true;
+  }
+
+  if (["hora", "que hora es"].some(p => t.includes(p))) {
+    speak("Son las " + now.getHours() + " con " + now.getMinutes() + " minutos.");
+    return true;
+  }
+
+  if (["fecha", "que dia es"].some(p => t.includes(p))) {
+    const dias = ["domingo", "lunes", "martes", "miercoles", "jueves", "viernes", "sabado"];
+    const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+    speak("Hoy es " + dias[now.getDay()] + " " + now.getDate() + " de " + meses[now.getMonth()] + ".");
+    return true;
+  }
+
+  if (["busca", "googlea", "navega"].some(p => t.includes(p))) {
+    let q = t.replace(/busca|googlea|navega|en internet/g, "").trim();
+    if (q) {
+      window.open("https://www.google.com/search?q=" + encodeURIComponent(q), "_blank");
+      speak("Buscando " + q + ".");
+    } else {
+      speak("Que desea buscar?");
+    }
+    return true;
+  }
+
+  return false;
+}
+
+// ===== SPEECH RECOGNITION =====
+function startListening() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Tu navegador no soporta reconocimiento de voz. Usa Chrome o Edge.");
+    return;
+  }
+
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {}
+  }
+
+  recognition = new SpeechRecognition();
+  recognition.lang = "es-ES";
+  recognition.continuous = true;
+  recognition.interimResults = false;
+
+  recognition.onresult = (event) => {
+    for (let i = event.resultIndex; i < event.results.length; i++) {
+      if (event.results[i].isFinal) {
+        const text = event.results[i][0].transcript;
+        log("Tu: " + text);
+        if (speaking || thinking) return;
+        if (!handleCommand(text)) {
+          askGroq(text);
+        }
+      }
+    }
+  };
+
+  recognition.onerror = (event) => {
+    if (event.error === "no-speech") return;
+    log("Error de reconocimiento: " + event.error);
+    if (listening) {
+      setTimeout(() => { if (listening) startListening(); }, 500);
+    }
+  };
+
+  recognition.onend = () => {
+    if (listening) {
+      setTimeout(() => { if (listening) startListening(); }, 300);
+    }
+  };
+
+  try {
+    recognition.start();
+    listening = true;
+    setStatus("ESCUCHANDO", "#00ff44");
+    micBtn.textContent = "ESCUCHANDO";
+    micBtn.className = "listening";
+    bubbleEl.textContent = "Te escucho...";
+    log("JARVIS: Sistema iniciado. Puedes hablar.");
+  } catch (e) {
+    log("Error al iniciar el microfono: " + e.message);
+  }
+}
+
+function stopListening() {
+  listening = false;
+  if (recognition) {
+    try { recognition.stop(); } catch(e) {}
+  }
+  micBtn.textContent = "INICIAR";
+  micBtn.className = "";
+  setStatus("DETENIDO", "#ffaa00");
+  bubbleEl.textContent = "Presiona INICIAR y habla";
+}
+
+// ===== MIC BUTTON =====
+micBtn.addEventListener("click", () => {
+  if (listening) {
+    stopListening();
+  } else {
+    startListening();
+  }
+});
+
+// ===== API KEY =====
+apiBtn.addEventListener("click", () => {
+  const key = apiInput.value.trim();
+  if (key) {
+    apiKey = key;
+    apiStatus.textContent = "API key actualizada";
+    apiStatus.style.color = "#00ff44";
+  } else {
+    apiKey = GROQ_KEY;
+    apiInput.value = "";
+    apiStatus.textContent = "Usando key predeterminada";
+    apiStatus.style.color = "#008866";
+  }
+  setTimeout(() => { apiStatus.textContent = ""; }, 3000);
+});
+
+// ===== WAVE AMP ANIMATION LOOP =====
+function animateWave() {
+  if (speaking) {
+    waveAmp = Math.min(waveAmp + 3, 60);
+  } else {
+    waveAmp = Math.max(waveAmp - 5, 0);
+  }
+  setTimeout(animateWave, 30);
+}
+animateWave();
+
+// ===== KEYBOARD SHORTCUT =====
+document.addEventListener("keydown", (e) => {
+  if (e.key === "Escape") {
+    if (listening) stopListening();
+  }
+});
+
+log("J.A.R.V.I.S. Web v1.0 cargado. Presiona INICIAR.");
+console.log("J.A.R.V.I.S. Web listo!");
+</script>
+</body>
+</html>
