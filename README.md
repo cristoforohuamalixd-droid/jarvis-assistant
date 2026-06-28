@@ -1,44 +1,35 @@
-# J.A.R.V.I.S. - Asistente de IA con Reconocimiento de Voz
+# J.A.R.V.I.S. - Asistente de IA
 
-Asistente virtual tipo Jarvis con inteligencia artificial (Groq), reconocimiento de voz y respuesta por voz en español.
+Asistente virtual con inteligencia artificial, reconocimiento de voz y respuesta por voz en español.
 
-## Versión Web (recomendada)
+## 🌐 Versión Web (Recomendada)
 
-Usa Jarvis directamente en tu navegador:
+**https://jarvis-assistant.surge.sh**
 
-👉 **https://cristoforohuamalixd-droid.github.io/jarvis-ai**
+Funciona en Chrome y Edge. Solo presiona INICIAR y habla.
 
-Funciona en Chrome y Edge. No requiere instalación.
+## 📥 Descarga para Windows
 
-### Cómo usar la web
-1. Abre el enlace
-2. Presiona **INICIAR** y concede permiso para el micrófono
-3. Habla y Jarvis te responderá
+**https://github.com/cristoforohuamalixd-droid/jarvis-assistant/releases/download/v1.0/Jarvis.exe**
 
-## Versión Python (escritorio)
+Descarga el .exe y ejecútalo. No necesita instalar Python.
 
-Para ejecutar localmente en Windows:
+## 🐍 Versión Python (Código fuente)
 
-### Requisitos
-- Python 3.8+
-- Micrófono funcional
-
-### Instalación
 ```bash
+git clone https://github.com/cristoforohuamalixd-droid/jarvis-assistant
+cd jarvis-assistant
 pip install -r requirements.txt
 python main.py
 ```
 
-### Comandos de voz
-- "Hola" - Inicia conversación
-- "¿Qué hora es?" - Escuchar la hora actual
-- "¿Qué día es?" - Escuchar la fecha actual
-- "Abre Chrome" - Abre calculadora, notepad, explorador o Chrome
-- "Busca [tema]" - Busca en Google
-- "Adiós" - Cierra la aplicación
+## Comandos de voz
+- "¿Qué hora es?" - Hora actual
+- "¿Qué día es?" - Fecha actual
+- "Busca [tema]" - Buscar en Google
+- "Adiós" - Cerrar
 
 ## Tecnologías
 - **IA**: Groq (Llama 3.3 70B)
-- **Voz**: edge-tts (Python) / Web Speech API (web)
-- **Reconocimiento**: Google Speech Recognition (Python) / Web Speech API (web)
-- **Interfaz**: Tkinter (Python) / HTML5 Canvas (web)
+- **Web**: Speech API + Groq API
+- **Escritorio**: Python, edge-tts, pygame
